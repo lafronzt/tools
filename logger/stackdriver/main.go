@@ -61,3 +61,8 @@ func Critical(body string, t ...interface{}) {
 func Debug(body string, t ...interface{}) {
 	log.Printf(logger{Severity: "DEBUG", Message: fmt.Sprintf(body, t...)}.String())
 }
+
+// Warning  formats the logs for error message parsing for StackDriver
+func Warning(body string, t ...interface{}) {
+	log.Printf(logger{Severity: "WARNING", Message: fmt.Sprintf(body, t...)}.String())
+}

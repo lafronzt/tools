@@ -1,3 +1,3 @@
 module go.lafronz.com/tools/logger/stackdriver
 
-go 1.14
+go 1.15
