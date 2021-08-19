@@ -4,23 +4,23 @@ package stackdriver
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	sysLog "log"
 	"os"
 	"strings"
 )
 
-type logger struct {
+type log struct {
 	Severity string            `json:"severity"`
 	Message  string            `json:"message"`
 	Labels   map[string]string `json:"labels"`
 }
 
 func init() {
-	log.SetFlags(0)
-	log.SetOutput(os.Stdout)
+	sysLog.SetFlags(0)
+	sysLog.SetOutput(os.Stdout)
 }
 
-func (l logger) String() string {
+func (l log) String() string {
 	l.Message = strings.ReplaceAll(l.Message, "\"", "'")
 
 	if len(l.Labels) == 0 {
@@ -44,25 +44,45 @@ func (l logger) String() string {
 
 // Info formats the logs as an info message parsing for StackDriver
 func Info(body string, t ...interface{}) {
-	log.Printf(logger{Severity: "INFO", Message: fmt.Sprintf(body, t...)}.String())
+	sysLog.Print(log{Severity: "INFO", Message: fmt.Sprintf(body, t...)}.String())
+}
+
+func InfoL(labels map[string]string, body string, t ...interface{}) {
+	sysLog.Print(log{Severity: "INFO", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
 }
 
 // Error formats the logs for error message parsing for StackDriver
 func Error(body string, t ...interface{}) {
-	log.Printf(logger{Severity: "ERROR", Message: fmt.Sprintf(body, t...)}.String())
+	sysLog.Print(log{Severity: "ERROR", Message: fmt.Sprintf(body, t...)}.String())
+}
+
+func ErrorL(labels map[string]string, body string, t ...interface{}) {
+	sysLog.Print(log{Severity: "ERROR", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
 }
 
 // Critical formats the logs for error message parsing for StackDriver
 func Critical(body string, t ...interface{}) {
-	log.Printf(logger{Severity: "CRITICAL", Message: fmt.Sprintf(body, t...)}.String())
+	sysLog.Print(log{Severity: "CRITICAL", Message: fmt.Sprintf(body, t...)}.String())
+}
+
+func CriticalL(labels map[string]string, body string, t ...interface{}) {
+	sysLog.Print(log{Severity: "CRITICAL", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
 }
 
 // Debug formats the logs for error message parsing for StackDriver
 func Debug(body string, t ...interface{}) {
-	log.Printf(logger{Severity: "DEBUG", Message: fmt.Sprintf(body, t...)}.String())
+	sysLog.Print(log{Severity: "DEBUG", Message: fmt.Sprintf(body, t...)}.String())
 }
 
-// Warning  formats the logs for error message parsing for StackDriver
+func DebugL(labels map[string]string, body string, t ...interface{}) {
+	sysLog.Print(log{Severity: "DEBUG", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
+}
+
+// Warning formats the logs for error message parsing for StackDriver
 func Warning(body string, t ...interface{}) {
-	log.Printf(logger{Severity: "WARNING", Message: fmt.Sprintf(body, t...)}.String())
+	sysLog.Print(log{Severity: "Warning", Message: fmt.Sprintf(body, t...)}.String())
+}
+
+func WarningL(labels map[string]string, body string, t ...interface{}) {
+	sysLog.Print(log{Severity: "Warning", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
 }
