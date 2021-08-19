@@ -47,6 +47,7 @@ func Info(body string, t ...interface{}) {
 	sysLog.Print(log{Severity: "INFO", Message: fmt.Sprintf(body, t...)}.String())
 }
 
+// InfoL formats the logs as an info message parsing for StackDriver with a label
 func InfoL(labels map[string]string, body string, t ...interface{}) {
 	sysLog.Print(log{Severity: "INFO", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
 }
@@ -56,6 +57,7 @@ func Error(body string, t ...interface{}) {
 	sysLog.Print(log{Severity: "ERROR", Message: fmt.Sprintf(body, t...)}.String())
 }
 
+// ErrorL formats the logs for error message parsing for StackDriver with a label
 func ErrorL(labels map[string]string, body string, t ...interface{}) {
 	sysLog.Print(log{Severity: "ERROR", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
 }
@@ -65,6 +67,7 @@ func Critical(body string, t ...interface{}) {
 	sysLog.Print(log{Severity: "CRITICAL", Message: fmt.Sprintf(body, t...)}.String())
 }
 
+// CriticalL formats the logs for error message parsing for StackDriver with a label
 func CriticalL(labels map[string]string, body string, t ...interface{}) {
 	sysLog.Print(log{Severity: "CRITICAL", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
 }
@@ -74,6 +77,7 @@ func Debug(body string, t ...interface{}) {
 	sysLog.Print(log{Severity: "DEBUG", Message: fmt.Sprintf(body, t...)}.String())
 }
 
+// DebugL formats the logs for error message parsing for StackDriver with a label
 func DebugL(labels map[string]string, body string, t ...interface{}) {
 	sysLog.Print(log{Severity: "DEBUG", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
 }
@@ -83,6 +87,7 @@ func Warning(body string, t ...interface{}) {
 	sysLog.Print(log{Severity: "Warning", Message: fmt.Sprintf(body, t...)}.String())
 }
 
+// WarningL formats the logs for error message parsing for StackDriver with a label
 func WarningL(labels map[string]string, body string, t ...interface{}) {
 	sysLog.Print(log{Severity: "Warning", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
 }
