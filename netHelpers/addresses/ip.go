@@ -1,3 +1,4 @@
+// Address is a helper package for handling IP Addresses
 package addresses
 
 import (
@@ -5,6 +6,7 @@ import (
 	"net/http"
 )
 
+// GetIP returns the IP address of the client
 func GetRealIP(r *http.Request) *string {
 	var remoteIP string
 
