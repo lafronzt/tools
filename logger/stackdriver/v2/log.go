@@ -34,6 +34,10 @@ func (l log) String() string {
 		// so we convert it here
 		l.SpanID = fmt.Sprintf("%x", l.SpanID)
 
+		// Trace needs to be in the format of projects/{project_id}/traces/{trace_id}
+		// so we add the project id here
+		l.Trace = fmt.Sprintf("projects/%v/traces/%v", GCPProjectID, l.Trace)
+
 		if len(l.Labels) == 0 {
 			return fmt.Sprintf(
 				"{\"severity\":\"%v\", \"message\":\"%v\", \"trace\":\"%v\", \"spanId\":\"%v\"}",
