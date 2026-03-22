@@ -1,4 +1,5 @@
-// Address is a helper package for handling IP Addresses
+// Package addresses provides helpers for extracting client IP addresses from
+// HTTP requests that may pass through proxies or load balancers.
 package addresses
 
 import (
@@ -7,33 +8,39 @@ import (
 	"strings"
 )
 
-// GetIP returns the IP address of the client
+// GetRealIP returns the originating client IP from r, checking headers in
+// order of specificity: X-Real-IP → X-Forwarded-For → RemoteAddr.
+//
+// When X-Forwarded-For contains a comma-separated list of addresses (as added
+// by each successive proxy), only the first (originating) address is returned.
+//
+// The returned pointer is never nil; it points to an empty string if no
+// address could be determined.
 func GetRealIP(r *http.Request) *string {
-	var headerValue string
-	var remoteIP string
+	var ip string
 
-	if len(r.Header.Get("X-REAL-IP")) > 0 {
-		headerValue = r.Header.Get("X-REAL-IP")
-	} else if len(r.Header.Get("X-Forwarded-For")) > 0 {
-		headerValue = r.Header.Get("X-Forwarded-For")
-	} else {
+	switch {
+	case r.Header.Get("X-Real-IP") != "":
+		ip = firstIP(r.Header.Get("X-Real-IP"))
+	case r.Header.Get("X-Forwarded-For") != "":
+		ip = firstIP(r.Header.Get("X-Forwarded-For"))
+	default:
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
-			remoteIP = r.RemoteAddr
+			ip = r.RemoteAddr
+		} else {
+			ip = host
 		}
-		remoteIP = host
 	}
 
-	if len(headerValue) > 0 {
-		remoteIP = splitStringAndTakeFirstValue(headerValue)
-	}
-
-	return &remoteIP
+	return &ip
 }
 
-func splitStringAndTakeFirstValue(str string) string {
-    if strings.Contains(str, ",") {
-        return strings.Split(str, ",")[0]
-    }
-    return str
+// firstIP returns the first IP from a comma-separated list, trimmed of
+// whitespace. If the value contains no comma it is returned as-is.
+func firstIP(s string) string {
+	if idx := strings.IndexByte(s, ','); idx != -1 {
+		return strings.TrimSpace(s[:idx])
+	}
+	return strings.TrimSpace(s)
 }

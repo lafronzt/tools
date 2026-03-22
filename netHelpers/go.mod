@@ -1,3 +1,3 @@
 module go.lafronz.com/tools/netHelpers
 
-go 1.15
+go 1.24

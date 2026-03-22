@@ -1,4 +1,6 @@
-// Package stackdriver is used to format the logs to better fit StackDriver JSON filtering
+// Package stackdriver formats log entries as newline-delimited JSON for
+// Google Cloud Logging (formerly Stackdriver). Each entry is written to
+// stdout and includes a severity field matching GCL's expected values.
 package stackdriver
 
 import (
@@ -6,13 +8,12 @@ import (
 	"fmt"
 	sysLog "log"
 	"os"
-	"strings"
 )
 
-type log struct {
+type entry struct {
 	Severity string            `json:"severity"`
 	Message  string            `json:"message"`
-	Labels   map[string]string `json:"labels"`
+	Labels   map[string]string `json:"labels,omitempty"`
 }
 
 func init() {
@@ -20,74 +21,61 @@ func init() {
 	sysLog.SetOutput(os.Stdout)
 }
 
-func (l log) String() string {
-	l.Message = strings.ReplaceAll(l.Message, "\"", "'")
-
-	if len(l.Labels) == 0 {
-		return fmt.Sprintf(
-			"{\"severity\":\"%v\", \"message\":\"%v\"}", l.Severity, l.Message)
-
-	} else {
-		lblStr, err := json.Marshal(l.Labels)
-		if err != nil {
-			// return as if there were no labels
-			return fmt.Sprintf(
-				"{\"severity\":\"%v\", \"message\":\"%v\"",
-				l.Severity, l.Message)
-		}
-
-		return fmt.Sprintf(
-			"{\"severity\":\"%v\", \"message\":\"%v\", \"labels\":%v}",
-			l.Severity, l.Message, string(lblStr))
+func print(e entry) {
+	b, err := json.Marshal(e)
+	if err != nil {
+		sysLog.Printf(`{"severity":"ERROR","message":"stackdriver: failed to marshal log entry: %v"}`, err)
+		return
 	}
+	sysLog.Print(string(b))
 }
 
-// Info formats the logs as an info message parsing for StackDriver
+// Info logs a message at INFO severity.
 func Info(body string, t ...interface{}) {
-	sysLog.Print(log{Severity: "INFO", Message: fmt.Sprintf(body, t...)}.String())
+	print(entry{Severity: "INFO", Message: fmt.Sprintf(body, t...)})
 }
 
-// InfoL formats the logs as an info message parsing for StackDriver with a label
+// InfoL logs a message at INFO severity with labels.
 func InfoL(labels map[string]string, body string, t ...interface{}) {
-	sysLog.Print(log{Severity: "INFO", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
+	print(entry{Severity: "INFO", Labels: labels, Message: fmt.Sprintf(body, t...)})
 }
 
-// Error formats the logs for error message parsing for StackDriver
+// Error logs a message at ERROR severity.
 func Error(body string, t ...interface{}) {
-	sysLog.Print(log{Severity: "ERROR", Message: fmt.Sprintf(body, t...)}.String())
+	print(entry{Severity: "ERROR", Message: fmt.Sprintf(body, t...)})
 }
 
-// ErrorL formats the logs for error message parsing for StackDriver with a label
+// ErrorL logs a message at ERROR severity with labels.
 func ErrorL(labels map[string]string, body string, t ...interface{}) {
-	sysLog.Print(log{Severity: "ERROR", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
+	print(entry{Severity: "ERROR", Labels: labels, Message: fmt.Sprintf(body, t...)})
 }
 
-// Critical formats the logs for error message parsing for StackDriver
+// Critical logs a message at CRITICAL severity.
 func Critical(body string, t ...interface{}) {
-	sysLog.Print(log{Severity: "CRITICAL", Message: fmt.Sprintf(body, t...)}.String())
+	print(entry{Severity: "CRITICAL", Message: fmt.Sprintf(body, t...)})
 }
 
-// CriticalL formats the logs for error message parsing for StackDriver with a label
+// CriticalL logs a message at CRITICAL severity with labels.
 func CriticalL(labels map[string]string, body string, t ...interface{}) {
-	sysLog.Print(log{Severity: "CRITICAL", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
+	print(entry{Severity: "CRITICAL", Labels: labels, Message: fmt.Sprintf(body, t...)})
 }
 
-// Debug formats the logs for error message parsing for StackDriver
+// Debug logs a message at DEBUG severity.
 func Debug(body string, t ...interface{}) {
-	sysLog.Print(log{Severity: "DEBUG", Message: fmt.Sprintf(body, t...)}.String())
+	print(entry{Severity: "DEBUG", Message: fmt.Sprintf(body, t...)})
 }
 
-// DebugL formats the logs for error message parsing for StackDriver with a label
+// DebugL logs a message at DEBUG severity with labels.
 func DebugL(labels map[string]string, body string, t ...interface{}) {
-	sysLog.Print(log{Severity: "DEBUG", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
+	print(entry{Severity: "DEBUG", Labels: labels, Message: fmt.Sprintf(body, t...)})
 }
 
-// Warning formats the logs for error message parsing for StackDriver
+// Warning logs a message at WARNING severity.
 func Warning(body string, t ...interface{}) {
-	sysLog.Print(log{Severity: "Warning", Message: fmt.Sprintf(body, t...)}.String())
+	print(entry{Severity: "WARNING", Message: fmt.Sprintf(body, t...)})
 }
 
-// WarningL formats the logs for error message parsing for StackDriver with a label
+// WarningL logs a message at WARNING severity with labels.
 func WarningL(labels map[string]string, body string, t ...interface{}) {
-	sysLog.Print(log{Severity: "Warning", Labels: labels, Message: fmt.Sprintf(body, t...)}.String())
+	print(entry{Severity: "WARNING", Labels: labels, Message: fmt.Sprintf(body, t...)})
 }
