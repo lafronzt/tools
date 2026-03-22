@@ -16,6 +16,11 @@ import (
 //
 // The returned pointer is never nil; it points to an empty string if no
 // address could be determined.
+//
+// Security: X-Real-IP and X-Forwarded-For are client-controlled headers. Only
+// trust the value returned by this function when your server sits behind a
+// trusted proxy or load balancer that strips or overwrites these headers before
+// forwarding requests. Accepting them from untrusted sources allows IP spoofing.
 func GetRealIP(r *http.Request) *string {
 	var ip string
 

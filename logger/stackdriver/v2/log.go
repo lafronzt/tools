@@ -21,6 +21,10 @@ import (
 // init time but may be overridden by the caller.
 var GCPProjectID string
 
+// init redirects the standard log package to stdout with no flags so that
+// writeEntry output is clean JSON. Note: this mutates the global log.Writer
+// and log.Flags for the entire binary — avoid importing this package alongside
+// code that uses the standard log package directly.
 func init() {
 	sysLog.SetFlags(0)
 	sysLog.SetOutput(os.Stdout)
@@ -53,7 +57,7 @@ func formatSpanID(spanID string) string {
 	return spanID
 }
 
-func print(e entry) {
+func writeEntry(e entry) {
 	if e.Trace != "" {
 		e.Trace = formatTrace(e.Trace)
 	}
@@ -70,50 +74,50 @@ func print(e entry) {
 
 // Info logs a message at INFO severity with optional trace context.
 func Info(trace string, spanID string, body string, l ...interface{}) {
-	print(entry{Severity: "INFO", Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
+	writeEntry(entry{Severity: "INFO", Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
 }
 
 // InfoL logs a message at INFO severity with labels and optional trace context.
 func InfoL(labels map[string]string, trace string, spanID string, body string, l ...interface{}) {
-	print(entry{Severity: "INFO", Labels: labels, Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
+	writeEntry(entry{Severity: "INFO", Labels: labels, Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
 }
 
 // Error logs a message at ERROR severity with optional trace context.
 func Error(trace string, spanID string, body string, l ...interface{}) {
-	print(entry{Severity: "ERROR", Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
+	writeEntry(entry{Severity: "ERROR", Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
 }
 
 // ErrorL logs a message at ERROR severity with labels and optional trace context.
 func ErrorL(labels map[string]string, trace string, spanID string, body string, l ...interface{}) {
-	print(entry{Severity: "ERROR", Labels: labels, Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
+	writeEntry(entry{Severity: "ERROR", Labels: labels, Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
 }
 
 // Critical logs a message at CRITICAL severity with optional trace context.
 func Critical(trace string, spanID string, body string, l ...interface{}) {
-	print(entry{Severity: "CRITICAL", Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
+	writeEntry(entry{Severity: "CRITICAL", Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
 }
 
 // CriticalL logs a message at CRITICAL severity with labels and optional trace context.
 func CriticalL(labels map[string]string, trace string, spanID string, body string, l ...interface{}) {
-	print(entry{Severity: "CRITICAL", Labels: labels, Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
+	writeEntry(entry{Severity: "CRITICAL", Labels: labels, Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
 }
 
 // Debug logs a message at DEBUG severity with optional trace context.
 func Debug(trace string, spanID string, body string, l ...interface{}) {
-	print(entry{Severity: "DEBUG", Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
+	writeEntry(entry{Severity: "DEBUG", Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
 }
 
 // DebugL logs a message at DEBUG severity with labels and optional trace context.
 func DebugL(labels map[string]string, trace string, spanID string, body string, l ...interface{}) {
-	print(entry{Severity: "DEBUG", Labels: labels, Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
+	writeEntry(entry{Severity: "DEBUG", Labels: labels, Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
 }
 
 // Warning logs a message at WARNING severity with optional trace context.
 func Warning(trace string, spanID string, body string, l ...interface{}) {
-	print(entry{Severity: "WARNING", Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
+	writeEntry(entry{Severity: "WARNING", Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
 }
 
 // WarningL logs a message at WARNING severity with labels and optional trace context.
 func WarningL(labels map[string]string, trace string, spanID string, body string, l ...interface{}) {
-	print(entry{Severity: "WARNING", Labels: labels, Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
+	writeEntry(entry{Severity: "WARNING", Labels: labels, Message: fmt.Sprintf(body, l...), Trace: trace, SpanID: spanID})
 }

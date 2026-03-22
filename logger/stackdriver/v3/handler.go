@@ -30,10 +30,22 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"slices"
 	"sync"
 	"time"
 )
+
+// Compile-time check that *Handler satisfies slog.Handler.
+var _ slog.Handler = (*Handler)(nil)
+
+// groupOrAttrs holds either a group name (from WithGroup) or a slice of
+// pre-bound attributes (from WithAttrs). Exactly one field is non-zero.
+// The ordered slice of these on a Handler records the sequence of
+// WithGroup/WithAttrs calls so that each set of attrs is nested at precisely
+// the level it was bound, not at the level of later WithGroup calls.
+type groupOrAttrs struct {
+	group string
+	attrs []slog.Attr
+}
 
 // Handler implements [slog.Handler] for Google Cloud Logging.
 // The zero value is not usable; create one with [New].
@@ -43,12 +55,16 @@ type Handler struct {
 	level     slog.Leveler
 	mu        *sync.Mutex
 
-	// Copied on every WithAttrs / WithGroup / clone call.
-	preAttrs []slog.Attr
-	groups   []string
-	trace    string
-	spanID   string
-	labels   map[string]string
+	// Copied on every WithTrace / WithLabel / WithAttrs / WithGroup call.
+	trace  string
+	spanID string
+	labels map[string]string
+	// goas records the ordered sequence of WithGroup and WithAttrs calls.
+	// Each entry is either a group name (opens a new nesting level) or a
+	// slice of attrs (bound at the nesting level active when WithAttrs was
+	// called). This preserves the slog contract that pre-bound attrs are NOT
+	// nested under groups added after them.
+	goas []groupOrAttrs
 }
 
 // Option configures a [Handler].
@@ -115,8 +131,12 @@ func (h *Handler) Enabled(_ context.Context, level slog.Level) bool {
 }
 
 // Handle formats r as a GCL JSON log entry and writes it to the output.
+//
+// Attributes added via [Handler.WithAttrs] appear at the nesting level that
+// was active when WithAttrs was called. Record attrs appear at the innermost
+// level (after all [Handler.WithGroup] calls), matching the slog contract.
 func (h *Handler) Handle(_ context.Context, r slog.Record) error {
-	entry := map[string]any{
+	root := map[string]any{
 		"severity": gcpSeverity(r.Level),
 		"message":  r.Message,
 		"time":     r.Time.UTC().Format(time.RFC3339Nano),
@@ -124,30 +144,42 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 
 	if h.trace != "" {
 		if h.projectID != "" {
-			entry["logging.googleapis.com/trace"] = fmt.Sprintf("projects/%s/traces/%s", h.projectID, h.trace)
+			root["logging.googleapis.com/trace"] = fmt.Sprintf("projects/%s/traces/%s", h.projectID, h.trace)
 		} else {
-			entry["logging.googleapis.com/trace"] = h.trace
+			root["logging.googleapis.com/trace"] = h.trace
 		}
 	}
 	if h.spanID != "" {
-		entry["logging.googleapis.com/spanId"] = h.spanID
+		root["logging.googleapis.com/spanId"] = h.spanID
 	}
 	if len(h.labels) > 0 {
-		entry["logging.googleapis.com/labels"] = h.labels
+		root["logging.googleapis.com/labels"] = h.labels
 	}
 
-	// Merge pre-added attrs (from WithAttrs) and record attrs, respecting
-	// any active group nesting set by WithGroup.
-	allAttrs := make([]slog.Attr, 0, len(h.preAttrs)+r.NumAttrs())
-	allAttrs = append(allAttrs, h.preAttrs...)
+	// Walk the goas stack. Each group entry opens a new nested map; each
+	// attrs entry populates the map that was current when WithAttrs was
+	// called. Record attrs land at the innermost (current) level.
+	cur := root
+	for _, goa := range h.goas {
+		if goa.group != "" {
+			child := make(map[string]any)
+			cur[goa.group] = child
+			cur = child
+		} else {
+			for _, a := range goa.attrs {
+				resolveAttr(cur, a)
+			}
+		}
+	}
 	r.Attrs(func(a slog.Attr) bool {
-		allAttrs = append(allAttrs, a)
+		resolveAttr(cur, a)
 		return true
 	})
-	addAttrs(entry, h.groups, allAttrs)
 
-	data, err := json.Marshal(entry)
+	data, err := json.Marshal(root)
 	if err != nil {
+		// Do not silently drop the entry: report to stderr and propagate.
+		fmt.Fprintf(os.Stderr, "stackdriver: json.Marshal failed: %v\n", err)
 		return err
 	}
 	data = append(data, '\n')
@@ -158,51 +190,40 @@ func (h *Handler) Handle(_ context.Context, r slog.Record) error {
 	return err
 }
 
-// WithAttrs returns a new Handler with the given attrs added to every record.
+// WithAttrs returns a new Handler with the given attrs bound at the current
+// nesting level. Returns the receiver unchanged when attrs is empty.
 func (h *Handler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	if len(attrs) == 0 {
+		return h
+	}
 	h2 := h.clone()
-	h2.preAttrs = append(h2.preAttrs, attrs...)
+	h2.goas = append(h2.goas, groupOrAttrs{attrs: attrs})
 	return h2
 }
 
 // WithGroup returns a new Handler that nests subsequent attributes under a
-// JSON object with the given key.
+// JSON object with the given key. Returns the receiver unchanged when name is
+// empty, per the slog spec.
 func (h *Handler) WithGroup(name string) slog.Handler {
 	if name == "" {
 		return h
 	}
 	h2 := h.clone()
-	h2.groups = append(h2.groups, name)
+	h2.goas = append(h2.goas, groupOrAttrs{group: name})
 	return h2
 }
 
-// clone returns a copy of h with independent slice and map fields.
-// The mutex is shared so all clones serialize writes to the same writer.
+// clone returns a shallow copy of h with independent labels and goas slices.
+// The mutex pointer is shared so all clones serialize writes to the same writer.
 func (h *Handler) clone() *Handler {
 	h2 := *h
 	h2.labels = maps.Clone(h.labels)
-	h2.preAttrs = slices.Clone(h.preAttrs)
-	h2.groups = slices.Clone(h.groups)
+	h2.goas = make([]groupOrAttrs, len(h.goas))
+	copy(h2.goas, h.goas)
 	return &h2
 }
 
-// addAttrs inserts attrs into dst, nesting them under any active groups.
-func addAttrs(dst map[string]any, groups []string, attrs []slog.Attr) {
-	if len(groups) == 0 {
-		for _, a := range attrs {
-			resolveAttr(dst, a)
-		}
-		return
-	}
-	child, _ := dst[groups[0]].(map[string]any)
-	if child == nil {
-		child = make(map[string]any)
-	}
-	addAttrs(child, groups[1:], attrs)
-	dst[groups[0]] = child
-}
-
-// resolveAttr recursively adds a single slog.Attr into dst.
+// resolveAttr recursively adds a single slog.Attr into dst, handling groups.
 func resolveAttr(dst map[string]any, a slog.Attr) {
 	a.Value = a.Value.Resolve()
 	if a.Equal(slog.Attr{}) {
@@ -227,7 +248,7 @@ func resolveAttr(dst map[string]any, a slog.Attr) {
 }
 
 // gcpSeverity maps slog levels to GCL severity strings.
-// Levels above ERROR are mapped to CRITICAL.
+// Levels above ERROR+3 are mapped to CRITICAL.
 func gcpSeverity(level slog.Level) string {
 	switch {
 	case level < slog.LevelInfo:

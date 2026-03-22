@@ -2,6 +2,7 @@ package stackdriver_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"strings"
@@ -42,7 +43,7 @@ func TestSeverityMapping(t *testing.T) {
 			var buf bytes.Buffer
 			h := newTestHandler(&buf, stackdriver.WithMinLevel(slog.LevelDebug))
 			logger := slog.New(h)
-			logger.Log(nil, tc.level, "msg")
+			logger.Log(context.Background(), tc.level, "msg")
 			m := parseEntry(t, &buf)
 			if got := m["severity"]; got != tc.wantSev {
 				t.Errorf("severity = %q, want %q", got, tc.wantSev)
@@ -113,6 +114,22 @@ func TestWithAttrs(t *testing.T) {
 	}
 }
 
+// TestWithAttrsEmpty verifies the slog spec: WithAttrs with an empty or nil
+// slice must return the receiver unchanged (no allocation, no mutation).
+func TestWithAttrsEmpty(t *testing.T) {
+	var buf bytes.Buffer
+	h := newTestHandler(&buf)
+
+	h2 := h.WithAttrs(nil)
+	if h2 != slog.Handler(h) {
+		t.Error("WithAttrs(nil) should return the receiver unchanged")
+	}
+	h3 := h.WithAttrs([]slog.Attr{})
+	if h3 != slog.Handler(h) {
+		t.Error("WithAttrs([]slog.Attr{}) should return the receiver unchanged")
+	}
+}
+
 func TestWithGroup(t *testing.T) {
 	var buf bytes.Buffer
 	h := newTestHandler(&buf)
@@ -125,6 +142,67 @@ func TestWithGroup(t *testing.T) {
 	}
 	if req["method"] != "GET" {
 		t.Errorf("request.method = %v, want GET", req["method"])
+	}
+}
+
+// TestWithGroupEmpty verifies the slog spec: WithGroup("") must return the
+// receiver unchanged.
+func TestWithGroupEmpty(t *testing.T) {
+	var buf bytes.Buffer
+	h := newTestHandler(&buf)
+	h2 := h.WithGroup("")
+	if h2 != slog.Handler(h) {
+		t.Error("WithGroup(\"\") should return the receiver unchanged")
+	}
+}
+
+// TestNestedWithGroup verifies that stacking multiple WithGroup calls produces
+// a correctly nested JSON object.
+func TestNestedWithGroup(t *testing.T) {
+	var buf bytes.Buffer
+	h := newTestHandler(&buf)
+	logger := slog.New(h).WithGroup("a").WithGroup("b")
+	logger.Info("msg", "key", "val")
+	m := parseEntry(t, &buf)
+
+	a, ok := m["a"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected top-level 'a' group, got: %v", m)
+	}
+	b, ok := a["b"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected 'b' nested under 'a', got: %v", a)
+	}
+	if b["key"] != "val" {
+		t.Errorf("key should be under a.b, got: %v", b)
+	}
+}
+
+// TestWithAttrsBeforeGroup is the critical slog contract test: attributes
+// bound via WithAttrs must appear at the nesting level active when WithAttrs
+// was called, NOT nested under any groups added afterwards.
+func TestWithAttrsBeforeGroup(t *testing.T) {
+	var buf bytes.Buffer
+	h := newTestHandler(&buf)
+
+	// Bind "service" at root level, then open a "request" group.
+	logger := slog.New(h.WithAttrs([]slog.Attr{slog.String("service", "api")})).WithGroup("request")
+	logger.Info("msg", "method", "GET")
+	m := parseEntry(t, &buf)
+
+	// "service" must be at root, not nested under "request".
+	if m["service"] != "api" {
+		t.Errorf("service should be at root level; full entry: %v", m)
+	}
+	req, ok := m["request"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected 'request' group, got: %v", m)
+	}
+	if req["method"] != "GET" {
+		t.Errorf("method should be under request group, got: %v", req)
+	}
+	if req["service"] != nil {
+		t.Errorf("service must NOT appear under request group, got: %v", req)
 	}
 }
 
@@ -197,6 +275,8 @@ func TestNoTraceFieldsWhenEmpty(t *testing.T) {
 	}
 }
 
+// TestConcurrentSafety verifies no data race occurs when multiple goroutines
+// log through the same handler. Run with -race to catch violations.
 func TestConcurrentSafety(t *testing.T) {
 	var buf bytes.Buffer
 	h := newTestHandler(&buf)
@@ -219,9 +299,4 @@ func TestMessageWithSpecialChars(t *testing.T) {
 	slog.New(h).Info(`say "hello" & <world>`)
 	// Output must be valid JSON.
 	parseEntry(t, &buf)
-}
-
-func TestHandlerImplementsSlogHandler(t *testing.T) {
-	// Compile-time interface check surfaced as a runtime test.
-	var _ slog.Handler = stackdriver.New()
 }

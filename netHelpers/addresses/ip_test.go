@@ -33,9 +33,19 @@ func TestGetRealIP(t *testing.T) {
 			want:       "192.168.1.1",
 		},
 		{
-			name:       "RemoteAddr without port",
+			name:       "RemoteAddr without port (SplitHostPort fails, use raw)",
 			remoteAddr: "192.168.1.1",
 			want:       "192.168.1.1",
+		},
+		{
+			name:       "RemoteAddr IPv6 with port",
+			remoteAddr: "[::1]:8080",
+			want:       "::1",
+		},
+		{
+			name:       "Empty RemoteAddr returns empty string without panic",
+			remoteAddr: "",
+			want:       "",
 		},
 		{
 			name:       "X-Real-IP takes precedence over RemoteAddr",

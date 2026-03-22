@@ -9,6 +9,9 @@ import (
 	"testing"
 )
 
+// captureOutput redirects the global log writer to a buffer for the duration
+// of the test. Not parallel-safe: do not call t.Parallel() in tests that use
+// this helper, as it mutates the global log.Writer.
 func captureOutput(t *testing.T) *bytes.Buffer {
 	t.Helper()
 	var buf bytes.Buffer
@@ -54,6 +57,9 @@ func TestSeverities(t *testing.T) {
 }
 
 func TestTraceFormatting(t *testing.T) {
+	orig := GCPProjectID
+	t.Cleanup(func() { GCPProjectID = orig })
+
 	GCPProjectID = "my-project"
 	buf := captureOutput(t)
 	Info("trace-abc", "67890", "traced request")
@@ -71,6 +77,9 @@ func TestTraceFormatting(t *testing.T) {
 }
 
 func TestTraceWithNoProject(t *testing.T) {
+	orig := GCPProjectID
+	t.Cleanup(func() { GCPProjectID = orig })
+
 	GCPProjectID = ""
 	buf := captureOutput(t)
 	Info("raw-trace-id", "0", "msg")
